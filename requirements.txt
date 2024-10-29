@@ -1,0 +1,5 @@
+fastapi[all]==0.99.0  # specify latest stable version as of now
+uvicorn[standard]==0.22.0  # version specific to current stable
+requests==2.31.0
+reportlab==3.6.13
+gunicorn==20.1.0
