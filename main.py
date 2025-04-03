@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from bson import ObjectId
 from database import test
+from typing import Dict, Any
 
 app = FastAPI()
 
@@ -238,43 +239,43 @@ async def create_pdf(report_data: dict):
 
 # To run the FastAPI application, use the command:
 # uvicorn main:app --reload
+# gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app
 
 
-# Define a Pydantic model
+# Define a Pydantic model for flexible JSON data
 class FormData(BaseModel):
-    name: str
-    description: str
+    form_data: Dict[str, Any]  # Allows any number of key-value pairs inside `form_data`
 
 # Convert MongoDB document to JSON format
 def serialize_item(item):
-    return {"id": str(item["_id"]), "form_obj": item["form_obj"]}
+    return {"id": str(item["_id"]), "form_data": item["form_data"]}
 
-# Insert an item into MongoDB under "form_obj"
+# Insert an item into MongoDB under "form_data"
 @app.post("/test/")
 async def create_test(data: FormData):
-    document = {"form_obj": data.dict()}  # Store entire object under "form_obj"
-    new_item = await collection.insert_one(document)
+    document = {"form_data": data.form_data}  # Store entire object under "form_data"
+    new_item = await test.insert_one(document)
     return {"id": str(new_item.inserted_id), "message": "Test added successfully"}
 
-# Get all tests with "form_obj" key
+# Get all tests with "form_data" key
 @app.get("/test/")
 async def get_tests():
-    tests = await collection.find().to_list(length=100)
+    tests = await test.find().to_list(length=100)
     return [serialize_item(test) for test in tests]
 
 # Get a specific test by ID
 @app.get("/test/{test_id}")
 async def get_test(test_id: str):
-    test = await collection.find_one({"_id": ObjectId(test_id)})
+    test = await test.find_one({"_id": ObjectId(test_id)})
     if test:
         return serialize_item(test)
     raise HTTPException(status_code=404, detail="Test not found")
 
-# Update a test under "form_obj"
+# Update a test under "form_data"
 @app.put("/test/{test_id}")
 async def update_test(test_id: str, data: FormData):
-    update_result = await collection.update_one(
-        {"_id": ObjectId(test_id)}, {"$set": {"form_obj": data.dict()}}
+    update_result = await test.update_one(
+        {"_id": ObjectId(test_id)}, {"$set": {"form_data": data.form_data}}
     )
     if update_result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Test not found")
@@ -283,7 +284,7 @@ async def update_test(test_id: str, data: FormData):
 # Delete a test
 @app.delete("/test/{test_id}")
 async def delete_test(test_id: str):
-    delete_result = await collection.delete_one({"_id": ObjectId(test_id)})
+    delete_result = await test.delete_one({"_id": ObjectId(test_id)})
     if delete_result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Test not found")
     return {"message": "Test deleted successfully"}

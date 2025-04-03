@@ -6,4 +6,4 @@ DB_NAME = "Report"
 # Connect to MongoDB
 client = AsyncIOMotorClient(MONGO_URI)
 database = client[DB_NAME]
-test = database["test"]
+test = database["tests"]
