@@ -4,8 +4,14 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from io import BytesIO
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from bson import ObjectId
+from database import test
 
 app = FastAPI()
+
+
+
 
 # Allow all origins (you can restrict this in production)
 app.add_middleware(
@@ -232,3 +238,52 @@ async def create_pdf(report_data: dict):
 
 # To run the FastAPI application, use the command:
 # uvicorn main:app --reload
+
+
+# Define a Pydantic model
+class FormData(BaseModel):
+    name: str
+    description: str
+
+# Convert MongoDB document to JSON format
+def serialize_item(item):
+    return {"id": str(item["_id"]), "form_obj": item["form_obj"]}
+
+# Insert an item into MongoDB under "form_obj"
+@app.post("/test/")
+async def create_test(data: FormData):
+    document = {"form_obj": data.dict()}  # Store entire object under "form_obj"
+    new_item = await collection.insert_one(document)
+    return {"id": str(new_item.inserted_id), "message": "Test added successfully"}
+
+# Get all tests with "form_obj" key
+@app.get("/test/")
+async def get_tests():
+    tests = await collection.find().to_list(length=100)
+    return [serialize_item(test) for test in tests]
+
+# Get a specific test by ID
+@app.get("/test/{test_id}")
+async def get_test(test_id: str):
+    test = await collection.find_one({"_id": ObjectId(test_id)})
+    if test:
+        return serialize_item(test)
+    raise HTTPException(status_code=404, detail="Test not found")
+
+# Update a test under "form_obj"
+@app.put("/test/{test_id}")
+async def update_test(test_id: str, data: FormData):
+    update_result = await collection.update_one(
+        {"_id": ObjectId(test_id)}, {"$set": {"form_obj": data.dict()}}
+    )
+    if update_result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Test not found")
+    return {"message": "Test updated successfully"}
+
+# Delete a test
+@app.delete("/test/{test_id}")
+async def delete_test(test_id: str):
+    delete_result = await collection.delete_one({"_id": ObjectId(test_id)})
+    if delete_result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Test not found")
+    return {"message": "Test deleted successfully"}
